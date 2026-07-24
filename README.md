@@ -44,6 +44,11 @@ Aiven rsyslog endpoint is created. The generated private CA is suitable for a
 controlled deployment; protect `certs/ca.key` and do not copy it to Aiven or
 the relay host if it is not needed there.
 
+The script refuses to overwrite existing certificate material. To rotate a
+certificate, first move the existing `certs` files to a protected backup
+directory, generate the replacement, and update Aiven with the new CA before
+restarting the relay.
+
 ## 2. Start the relay
 
 ```sh
@@ -146,6 +151,12 @@ timeouts normally indicate outbound DNS/firewall restrictions.
 ## Operational notes
 
 - TLS verification is enabled for outbound Datadog traffic.
+- The generated private key remains mode `0600` on the host. The container
+  entrypoint temporarily uses `DAC_READ_SEARCH` to read a host-owned bind mount
+  and `CHOWN` to prepare the persistent buffer. `SETUID` and `SETGID` allow
+  `gosu` to switch users. The entrypoint copies the certificate and key to a
+  root-owned, group-protected runtime directory and then starts Fluentd as
+  UID/GID 1000 with those capabilities cleared.
 - `DD_SITE` accepts `datadoghq.com`, `us3.datadoghq.com`,
   `us5.datadoghq.com`, `datadoghq.eu`, `ap1.datadoghq.com`,
   `ap2.datadoghq.com`, `uk1.datadoghq.com`, `ddog-gov.com`, or

@@ -27,9 +27,11 @@ if [ ! -r "$key_source" ]; then
   exit 1
 fi
 
-install -d -o fluent -g fluent /run/fluentd-certs /fluentd/buffer
-install -o fluent -g fluent -m 0444 "$cert_source" /run/fluentd-certs/server.crt
-install -o fluent -g fluent -m 0400 "$key_source" /run/fluentd-certs/server.key
+install -d -o fluent -g fluent /fluentd/buffer
+rm -f /run/fluentd-certs/server.crt /run/fluentd-certs/server.key
+cp "$cert_source" /run/fluentd-certs/server.crt
+cp "$key_source" /run/fluentd-certs/server.key
+chmod 0440 /run/fluentd-certs/server.crt /run/fluentd-certs/server.key
 chown fluent:fluent /fluentd/buffer
 
 exec gosu fluent "$@"

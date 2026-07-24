@@ -20,7 +20,7 @@ RUN groupadd --system --gid 1000 fluent \
     && install -d -o fluent -g fluent \
        /fluentd/etc \
        /fluentd/buffer \
-       /run/fluentd-certs
+    && install -d -o root -g fluent -m 2750 /run/fluentd-certs
 
 COPY fluent.conf /fluentd/etc/fluent.conf
 COPY docker-entrypoint.sh /usr/local/bin/docker-entrypoint.sh

@@ -10,6 +10,15 @@ if [ -z "$relay_name" ]; then
 fi
 
 mkdir -p "$output_dir"
+
+for existing_file in ca.key ca.crt server.key server.crt; do
+  if [ -e "$output_dir/$existing_file" ]; then
+    echo "Refusing to overwrite existing certificate material: $output_dir/$existing_file" >&2
+    echo "Move the existing files to a backup directory before generating a replacement." >&2
+    exit 1
+  fi
+done
+
 extension_file="$(mktemp)"
 trap 'rm -f "$extension_file"' EXIT HUP INT TERM
 
