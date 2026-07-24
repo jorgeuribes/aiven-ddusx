@@ -42,7 +42,9 @@ chmod +x scripts/generate-certs.sh
 This also creates `certs/ca.crt`, which must be supplied as the CA when the
 Aiven rsyslog endpoint is created. The generated private CA is suitable for a
 controlled deployment; protect `certs/ca.key` and do not copy it to Aiven or
-the relay host if it is not needed there.
+the relay host if it is not needed there. The CA includes critical
+`CA:TRUE` and `keyCertSign,cRLSign` extensions required by Aiven's certificate
+verifier. The server certificate is constrained to TLS server authentication.
 
 The script refuses to overwrite existing certificate material. To rotate a
 certificate, first move the existing `certs` files to a protected backup

@@ -19,8 +19,13 @@ for existing_file in ca.key ca.crt server.key server.crt; do
   fi
 done
 
-extension_file="$(mktemp)"
-trap 'rm -f "$extension_file"' EXIT HUP INT TERM
+ca_config="$(mktemp)"
+server_extension_file="$(mktemp)"
+
+cleanup() {
+  rm -f "$ca_config" "$server_extension_file"
+}
+trap cleanup EXIT HUP INT TERM
 
 case "$relay_name" in
   *[!0-9.]*)
@@ -32,14 +37,34 @@ case "$relay_name" in
 esac
 
 {
+  echo "basicConstraints=critical,CA:FALSE"
+  echo "keyUsage=critical,digitalSignature,keyEncipherment"
   echo "subjectAltName=${san}"
   echo "extendedKeyUsage=serverAuth"
-} >"$extension_file"
+  echo "subjectKeyIdentifier=hash"
+  echo "authorityKeyIdentifier=keyid,issuer"
+} >"$server_extension_file"
+
+cat >"$ca_config" <<'EOF'
+[req]
+distinguished_name = ca_subject
+prompt = no
+x509_extensions = ca_extensions
+
+[ca_subject]
+CN = Aiven Fluentd Relay CA
+
+[ca_extensions]
+basicConstraints = critical,CA:TRUE
+keyUsage = critical,keyCertSign,cRLSign
+subjectKeyIdentifier = hash
+authorityKeyIdentifier = keyid:always,issuer
+EOF
 
 openssl genrsa -out "$output_dir/ca.key" 3072
 openssl req -x509 -new -sha256 -days 3650 \
   -key "$output_dir/ca.key" \
-  -subj "/CN=Aiven Fluentd Relay CA" \
+  -config "$ca_config" \
   -out "$output_dir/ca.crt"
 
 openssl genrsa -out "$output_dir/server.key" 3072
@@ -53,11 +78,22 @@ openssl x509 -req -sha256 -days 825 \
   -CA "$output_dir/ca.crt" \
   -CAkey "$output_dir/ca.key" \
   -CAcreateserial \
-  -extfile "$extension_file" \
+  -extfile "$server_extension_file" \
   -out "$output_dir/server.crt"
 
 chmod 0600 "$output_dir/ca.key" "$output_dir/server.key"
 rm -f "$output_dir/server.csr" "$output_dir/ca.srl"
+
+case "$san" in
+  IP:*)
+    openssl verify -purpose sslserver -verify_ip "$relay_name" \
+      -CAfile "$output_dir/ca.crt" "$output_dir/server.crt"
+    ;;
+  DNS:*)
+    openssl verify -purpose sslserver -verify_hostname "$relay_name" \
+      -CAfile "$output_dir/ca.crt" "$output_dir/server.crt"
+    ;;
+esac
 
 echo "Created relay certificate for ${relay_name} in ${output_dir}"
 echo "Keep ca.key and server.key secret. Supply ca.crt to the Aiven endpoint."
