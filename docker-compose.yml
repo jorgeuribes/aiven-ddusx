@@ -1,0 +1,29 @@
+services:
+  fluentd:
+    build:
+      context: .
+      args:
+        FLUENTD_VERSION: "1.18.0"
+        DATADOG_PLUGIN_VERSION: "0.15.0"
+    image: aiven-datadog-relay:local
+    restart: unless-stopped
+    environment:
+      DD_API_KEY: "${DD_API_KEY:?Set DD_API_KEY in .env or the shell}"
+      DD_SITE: "${DD_SITE:-us3.datadoghq.com}"
+      DD_SOURCE: "${DD_SOURCE:-aiven}"
+      DD_SERVICE: "${DD_SERVICE:-}"
+      DD_TAGS: "${DD_TAGS:-provider:aiven,env:production}"
+      FLUENTD_LOG_LEVEL: "${FLUENTD_LOG_LEVEL:-info}"
+    ports:
+      - "${SYSLOG_BIND_ADDRESS:-0.0.0.0}:${SYSLOG_PORT:-6514}:6514/tcp"
+      - "127.0.0.1:${MONITOR_PORT:-24220}:24220/tcp"
+    volumes:
+      - ./certs:/fluentd/certs:ro
+      - fluentd-buffer:/fluentd/buffer
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+
+volumes:
+  fluentd-buffer:
