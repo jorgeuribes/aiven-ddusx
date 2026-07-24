@@ -123,7 +123,9 @@ curl --fail http://127.0.0.1:24220/api/plugins.json
 Send an RFC 5424 test message through the TLS listener:
 
 ```sh
-printf '<14>1 2026-01-01T00:00:00Z test.aiven relay - - - Aiven relay test\n' |
+test_timestamp="$(date -u '+%Y-%m-%dT%H:%M:%SZ')"
+
+printf '<14>1 %s test.aiven relay - - - Aiven relay test\n' "$test_timestamp" |
   openssl s_client \
     -quiet \
     -no_ign_eof \
@@ -135,8 +137,34 @@ printf '<14>1 2026-01-01T00:00:00Z test.aiven relay - - - Aiven relay test\n' |
 In the selected Datadog site's Log Explorer, search for:
 
 ```text
-@aiven_service:test.aiven "Aiven relay test"
+service:test.aiven "Aiven relay test"
 ```
+
+Keep the Log Explorer time range on **Last 15 minutes** only when the test uses
+the current UTC timestamp above. Fluentd preserves the RFC 5424 event time, so
+a hard-coded older timestamp places the event in that older Datadog time
+window.
+
+To test Datadog independently of the syslog input, submit one event directly
+from inside the relay container. A successful intake returns HTTP `202`:
+
+```sh
+docker compose exec fluentd sh -lc '
+  curl --silent --show-error \
+    --output /tmp/datadog-response \
+    --write-out "HTTP %{http_code}\n" \
+    --request POST \
+    --header "Content-Type: application/json" \
+    --header "DD-API-KEY: ${DD_API_KEY}" \
+    --data "[{\"message\":\"Direct relay intake test\",\"service\":\"aiven-relay-test\",\"ddsource\":\"aiven\"}]" \
+    "https://http-intake.logs.${DD_SITE}/api/v2/logs"
+  cat /tmp/datadog-response
+'
+```
+
+Search for `service:aiven-relay-test "Direct relay intake test"`. An HTTP `403`
+means the API key is invalid or belongs to a different Datadog site. DNS,
+connection, or TLS errors indicate an outbound networking problem.
 
 For Aiven-originated traffic, also check the integration status in the Aiven
 Console and inspect relay output:
